@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
 from pyngrok import ngrok
 import httpx
+import datetime
 
 app = FastAPI()
 
@@ -42,9 +43,9 @@ async def proxy_to_openrouter(request: Request):
         "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
     }
     combined_data = {
+        "timestamp": datetime.datetime.now().isoformat(),  # Add timestamp here
         "request": request_data,
-        
-                                }
+    }
     # Define the async generator for streaming
     async def response_stream():
         # Create an async client
@@ -83,7 +84,6 @@ async def proxy_to_openrouter(request: Request):
                         except json.JSONDecodeError:
                             pass  # Handle or log the error if needed
 
-
                 if len(response_content)==0:
                     assert len(lines)==1
                     try:
@@ -101,8 +101,8 @@ async def proxy_to_openrouter(request: Request):
 
 if __name__ == "__main__":
     # Start ngrok tunnel
-    public_url = ngrok.connect(8000)
-    print(f"ngrok tunnel: {public_url}")
+    public_url = ngrok.connect(8000).public_url
+    print(f"ngrok tunnel: {public_url}/api/v1")
 
     # Run the FastAPI app on port 8000
     import uvicorn
