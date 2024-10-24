@@ -32,13 +32,19 @@ async def proxy_to_openrouter(request: Request):
 
     # Instead of storing it now, we'll store it later together with the response
     request_data = body
+    model_name = request_data["model"]
+    if "cloood" in model_name:
+        request_data["model"] = "anthropic/claude-3.5-sonnet:beta"
 
     # Define the headers
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
     }
-
+    combined_data = {
+        "request": request_data,
+        
+                                }
     # Define the async generator for streaming
     async def response_stream():
         # Create an async client
@@ -63,26 +69,31 @@ async def proxy_to_openrouter(request: Request):
                         buffer += chunk_str
 
                         # Process complete lines
-                        while "\n" in buffer:
-                            line, buffer = buffer.split("\n", 1)
-                            line = line.strip()
-                            if line == "data: [DONE]":
-                                # Response is complete
-                                # Combine request and response and store them together
-                                combined_data = {
-                                    "request": request_data,
-                                    "response": response_content,
-                                }
-                                store_locally(combined_data, "combined_data.json")
-                            elif line.startswith("data: "):
-                                json_str = line[6:].strip()
-                                try:
-                                    data = json.loads(json_str)
-                                    # Extract and accumulate the content
-                                    content_fragment = remove_unneeded_fields(data)
-                                    response_content += content_fragment
-                                except json.JSONDecodeError:
-                                    pass  # Handle or log the error if needed
+                    # while "\n" in buffer:
+                lines = [line.strip() for line in buffer.split("\n")]
+                lines = [line for line in lines if len(line)>0]
+                for line in lines:
+                    if line.startswith("data: "):
+                        json_str = line[6:].strip()
+                        try:
+                            data = json.loads(json_str)
+                            # Extract and accumulate the content
+                            content_fragment = remove_unneeded_fields(data)
+                            response_content += content_fragment
+                        except json.JSONDecodeError:
+                            pass  # Handle or log the error if needed
+
+
+                if len(response_content)==0:
+                    assert len(lines)==1
+                    try:
+                        data = json.loads(lines[0])
+                        response_content = data["choices"][0]["message"]["content"]
+                    except json.JSONDecodeError:
+                        response_content = ""
+
+                combined_data["response"] = response_content
+                store_locally(combined_data, "combined_data.json")
 
     # Stream the response back to the client
     return StreamingResponse(response_stream(), media_type="text/event-stream")
