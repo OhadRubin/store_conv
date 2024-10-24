@@ -9,9 +9,19 @@ import datetime
 app = FastAPI()
 
 
-# Function to store data locally
-def store_locally(data, file_name):
-    with open(file_name, "a") as f:
+# Function to store data locally with organized directory structure
+def store_locally(data, base_dir="data"):
+    now = datetime.datetime.now()
+    month_dir = os.path.join(base_dir, now.strftime("%Y-%m"))
+    filename = f"{now.strftime('%Y-%m-%d')}.jsonl"
+    
+    # Create directories if they don't exist
+    os.makedirs(month_dir, exist_ok=True)
+    
+    # Full path for the file
+    file_path = os.path.join(month_dir, filename)
+    
+    with open(file_path, "a") as f:
         f.write(json.dumps(data) + "\n")
 
 
@@ -69,8 +79,6 @@ async def proxy_to_openrouter(request: Request):
                         chunk_str = chunk.decode("utf-8")
                         buffer += chunk_str
 
-                        # Process complete lines
-                    # while "\n" in buffer:
                 lines = [line.strip() for line in buffer.split("\n")]
                 lines = [line for line in lines if len(line)>0]
                 for line in lines:
@@ -93,7 +101,7 @@ async def proxy_to_openrouter(request: Request):
                         response_content = ""
 
                 combined_data["response"] = response_content
-                store_locally(combined_data, "combined_data.json")
+                store_locally(combined_data)
 
     # Stream the response back to the client
     return StreamingResponse(response_stream(), media_type="text/event-stream")
