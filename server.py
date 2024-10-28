@@ -7,6 +7,7 @@ import httpx
 import datetime
 
 app = FastAPI()
+OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
 
 
 # Function to store data locally with organized directory structure
@@ -50,7 +51,7 @@ async def proxy_to_openrouter(request: Request):
     # Define the headers
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
     }
     combined_data = {
         "timestamp": datetime.datetime.now().isoformat(),  # Add timestamp here
@@ -105,6 +106,17 @@ async def proxy_to_openrouter(request: Request):
 
     # Stream the response back to the client
     return StreamingResponse(response_stream(), media_type="text/event-stream")
+
+
+@app.get("/api/v1/models")
+async def proxy_models():
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+    }
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get("https://openrouter.ai/api/v1/models", headers=headers)
+        return response.json()
 
 
 if __name__ == "__main__":
