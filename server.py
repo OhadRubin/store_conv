@@ -5,10 +5,19 @@ from fastapi.responses import StreamingResponse
 from pyngrok import ngrok
 import httpx
 import datetime
+from fastapi.middleware.cors import CORSMiddleware  # Add this import
+
 
 app = FastAPI()
 OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
 
 # Function to store data locally with organized directory structure
 def store_locally(data, base_dir="data"):
@@ -113,9 +122,14 @@ async def proxy_models():
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
     }
-    
-    async with httpx.AsyncClient() as client:
-        response = await client.get("https://openrouter.ai/api/v1/models", headers=headers)
+
+    # Set a custom timeout and disable SSL verification
+    timeout = httpx.Timeout(10.0)
+    async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
+        response = await client.get(
+            "https://openrouter.ai/api/v1/models", 
+            headers=headers
+        )
         return response.json()
 
 
