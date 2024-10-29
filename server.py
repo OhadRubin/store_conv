@@ -6,6 +6,7 @@ from pyngrok import ngrok
 import httpx
 import datetime
 from fastapi.middleware.cors import CORSMiddleware  # Add this import
+from convert import convert_openai_messages, ChatData, import_chat
 
 
 app = FastAPI()
@@ -19,20 +20,20 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-# Function to store data locally with organized directory structure
-def store_locally(data, base_dir="data"):
-    now = datetime.datetime.now()
-    month_dir = os.path.join(base_dir, now.strftime("%Y-%m"))
-    filename = f"{now.strftime('%Y-%m-%d')}.jsonl"
-    
-    # Create directories if they don't exist
-    os.makedirs(month_dir, exist_ok=True)
-    
-    # Full path for the file
-    file_path = os.path.join(month_dir, filename)
-    
-    with open(file_path, "a") as f:
-        f.write(json.dumps(data) + "\n")
+# Function to handle chat storage (either locally or via API)
+def store_chat(data, use_api=False):
+    if use_api:
+        chat = convert_openai_messages(ChatData(**data)).model_dump()
+        import_chat(chat)
+    else:
+        # Original local storage logic
+        now = datetime.datetime.now()
+        month_dir = os.path.join("data", now.strftime("%Y-%m"))
+        filename = f"{now.strftime('%Y-%m-%d')}.jsonl"
+        os.makedirs(month_dir, exist_ok=True)
+        file_path = os.path.join(month_dir, filename)
+        with open(file_path, "a") as f:
+            f.write(json.dumps(data) + "\n")
 
 
 # Function to remove unneeded fields from response data
@@ -48,6 +49,7 @@ def remove_unneeded_fields(data):
 
 @app.post("/api/v1/chat/completions")
 async def proxy_to_openrouter(request: Request):
+    use_api = os.getenv('USE_API_IMPORT', 'false').lower() == 'true'
     # Read incoming request body
     body = await request.json()
 
@@ -111,7 +113,7 @@ async def proxy_to_openrouter(request: Request):
                         response_content = ""
 
                 combined_data["response"] = response_content
-                store_locally(combined_data)
+                store_chat(combined_data, use_api=use_api)
 
     # Stream the response back to the client
     return StreamingResponse(response_stream(), media_type="text/event-stream")
